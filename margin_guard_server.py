@@ -1,11 +1,11 @@
 import os, json
 os.makedirs("config", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
-if not os.path.exists("config/sku_cogs.json"):
-    with open("config/sku_cogs.json", "w") as _f:
+if not os.path.exists("sku_cogs.json"):
+    with open("sku_cogs.json", "w") as _f:
         json.dump({}, _f)
-if not os.path.exists("config/settings.json"):
-    with open("config/settings.json", "w") as _f:
+if not os.path.exists("settings.json"):
+    with open("settings.json", "w") as _f:
         json.dump({
             "shopify_store_url": os.environ.get("SHOPIFY_STORE_URL", ""),
             "shopify_access_token": os.environ.get("SHOPIFY_ACCESS_TOKEN", ""),
@@ -21,8 +21,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime, timezone
 
 http = urllib3.PoolManager()
-SETTINGS_FILE = "config/settings.json"
-COGS_FILE = "config/sku_cogs.json"
+SETTINGS_FILE = "settings.json"
+COGS_FILE = "sku_cogs.json"
 LEDGER_FILE = "logs/daily_profit_ledger.csv"
 
 with open(COGS_FILE, "r") as f:

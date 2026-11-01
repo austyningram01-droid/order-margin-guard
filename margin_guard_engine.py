@@ -10,8 +10,8 @@ http = urllib3.PoolManager()
 os.makedirs("config", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
-COGS_FILE = "config/sku_cogs.json"
-SETTINGS_FILE = "config/settings.json"
+COGS_FILE = "sku_cogs.json"
+SETTINGS_FILE = "settings.json"
 LEDGER_FILE = "logs/daily_profit_ledger.csv"
 
 with open(COGS_FILE, "r") as f:
