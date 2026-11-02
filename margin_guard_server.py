@@ -172,7 +172,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith("/api/"):
             return dashboard.handle_post(self)
-        dashboard.sync_state()
+        dashboard.sync_state(self.headers.get("X-Shopify-Shop-Domain"))
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
         
