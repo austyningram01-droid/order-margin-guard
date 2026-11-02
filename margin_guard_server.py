@@ -1,3 +1,4 @@
+import dashboard
 import os, json
 os.makedirs("config", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
@@ -165,7 +166,13 @@ def log_to_ledger(row: dict):
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        return dashboard.handle_get(self)
+
     def do_POST(self):
+        if self.path.startswith("/api/"):
+            return dashboard.handle_post(self)
+        dashboard.sync_state()
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
         
