@@ -172,6 +172,8 @@ class WebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith("/api/"):
             return dashboard.handle_post(self)
+        if self.path.startswith("/webhooks/compliance"):
+            return dashboard.handle_compliance_webhook(self)
         dashboard.sync_state(self.headers.get("X-Shopify-Shop-Domain"))
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
@@ -196,6 +198,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
             res["alert_status"] = "NOT_REQUIRED"
 
         log_to_ledger(res)
+        dashboard.record_order(self.headers.get("X-Shopify-Shop-Domain"), order_data, res)
         
         self.send_response(200)
         self.end_headers()

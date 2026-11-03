@@ -1,4 +1,5 @@
-import os, json, sqlite3, sys, hmac, hashlib, urllib.request
+import os, json, sqlite3, sys, hmac, hashlib, base64, urllib.request
+from datetime import datetime, timezone
 from urllib.parse import parse_qs, urlparse, urlencode
 
 DB_PATH = "margin_guard.db"
@@ -36,6 +37,16 @@ def init_db():
         PRIMARY KEY (shop_domain, sku)
     )""")
 
+    c.execute("""CREATE TABLE IF NOT EXISTS order_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop_domain TEXT,
+        order_name TEXT,
+        total_price TEXT,
+        margin_pct REAL,
+        action TEXT,
+        created_at TEXT
+    )""")
+
     settings = load_base_settings()
     shop = settings.get("shopify_domain") or settings.get("shopify_store_url") or "default_store"
     min_m = float(settings.get("min_margin_pct", 15.0))
@@ -68,11 +79,10 @@ def sync_state(target_shop=None):
     init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    row = None
     if target_shop:
         c.execute("SELECT shop_domain, min_margin_pct, alert_webhook_url, access_token FROM merchants WHERE shop_domain = ?", (target_shop,))
         row = c.fetchone()
-    else:
-        row = None
     if not row:
         c.execute("SELECT shop_domain, min_margin_pct, alert_webhook_url, access_token FROM merchants LIMIT 1")
         row = c.fetchone()
@@ -106,6 +116,66 @@ def sync_state(target_shop=None):
     except Exception:
         pass
     return shop, min_m, webhook, skus
+
+def record_order(target_shop, order_data, res):
+    init_db()
+    shop, _, _, _ = sync_state(target_shop)
+    order_name = str(order_data.get("name") or res.get("order_id") or "#0000")
+    total_price = str(order_data.get("total_price") or "0.00")
+    margin_val = res.get("margin_pct", res.get("net_margin_pct", res.get("margin", 0.0)))
+    try:
+        margin_pct = float(margin_val)
+    except Exception:
+        margin_pct = 0.0
+    action = str(res.get("action", "APPROVED"))
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT INTO order_logs (shop_domain, order_name, total_price, margin_pct, action, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+              (shop, order_name, total_price, margin_pct, action, now_str))
+    conn.commit()
+    conn.close()
+
+def verify_shopify_hmac(body_bytes, hmac_header):
+    if not hmac_header:
+        return False
+    settings = load_base_settings()
+    secrets = [
+        settings.get("shopify_client_secret", ""),
+        settings.get("shopify_shared_secret", "")
+    ]
+    for sec in secrets:
+        if sec:
+            digest = hmac.new(sec.encode("utf-8"), body_bytes, hashlib.sha256).digest()
+            computed = base64.b64encode(digest).decode("utf-8")
+            if hmac.compare_digest(computed, hmac_header):
+                return True
+    return False
+
+def handle_compliance_webhook(handler):
+    length = int(handler.headers.get("Content-Length", 0))
+    body = handler.rfile.read(length)
+    hmac_header = handler.headers.get("X-Shopify-Hmac-Sha256", "")
+    if not verify_shopify_hmac(body, hmac_header):
+        handler.send_response(401)
+        handler.end_headers()
+        handler.wfile.write(b"Unauthorized HMAC")
+        return
+    topic = handler.headers.get("X-Shopify-Topic", "")
+    shop = handler.headers.get("X-Shopify-Shop-Domain", "")
+    if topic == "shop/redact" and shop:
+        init_db()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("DELETE FROM merchants WHERE shop_domain = ?", (shop,))
+        c.execute("DELETE FROM sku_costs WHERE shop_domain = ?", (shop,))
+        c.execute("DELETE FROM order_logs WHERE shop_domain = ?", (shop,))
+        conn.commit()
+        conn.close()
+    handler.send_response(200)
+    handler.end_headers()
+    handler.wfile.write(b"OK")
 
 def register_order_webhook(shop, access_token):
     url = f"https://{shop}/admin/api/2024-10/webhooks.json"
@@ -199,6 +269,8 @@ def handle_get(handler):
     c = conn.cursor()
     c.execute("SELECT shop_domain FROM merchants ORDER BY shop_domain")
     all_shops = [r[0] for r in c.fetchall()]
+    c.execute("SELECT order_name, total_price, margin_pct, action, created_at FROM order_logs WHERE shop_domain = ? ORDER BY id DESC LIMIT 15", (shop,))
+    orders = c.fetchall()
     conn.close()
 
     shop_options = "".join(f'<option value="{s}" {"selected" if s == shop else ""}>{s}</option>' for s in all_shops)
@@ -207,10 +279,20 @@ def handle_get(handler):
         f"<td>{'' if s == 'DEFAULT' else f'<form method=\"POST\" action=\"/api/sku/delete\" style=\"margin:0\"><input type=\"hidden\" name=\"shop\" value=\"{shop}\"><input type=\"hidden\" name=\"sku\" value=\"{s}\"><button class=\"btn-del\">Delete</button></form>'}</td></tr>"
         for s, d in sorted(skus.items())
     )
+    if orders:
+        order_rows = "".join(
+            f"<tr><td><strong>{o[0]}</strong></td><td>${o[1]}</td><td>{o[2]:.1f}%</td>"
+            f"<td><span class=\"{'badge-hold' if o[3] == 'HOLD_FULFILLMENT' else 'badge-ok'}\">{o[3]}</span></td>"
+            f"<td style=\"color:#94a3b8;font-size:12px\">{o[4]}</td></tr>"
+            for o in orders
+        )
+    else:
+        order_rows = '<tr><td colspan="5" style="color:#94a3b8;text-align:center">No orders evaluated yet. Send a test webhook from Shopify!</td></tr>'
+
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Margin Guard Dashboard</title>
 <style>
-body {{ font-family: -apple-system, sans-serif; background: #0f172a; color: #f8fafc; max-width: 820px; margin: 40px auto; padding: 0 20px; }}
+body {{ font-family: -apple-system, sans-serif; background: #0f172a; color: #f8fafc; max-width: 860px; margin: 40px auto; padding: 0 20px; }}
 .card {{ background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px; margin-bottom: 24px; }}
 h1 {{ margin-top: 0; color: #38bdf8; }} h2 {{ margin-top: 0; font-size: 18px; color: #e2e8f0; }}
 label {{ display: block; font-size: 13px; color: #94a3b8; margin-bottom: 4px; }}
@@ -222,6 +304,8 @@ table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
 th, td {{ text-align: left; padding: 10px; border-bottom: 1px solid #334155; }}
 .grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }}
 .top-bar {{ display: flex; gap: 12px; align-items: flex-end; }}
+.badge-ok {{ background: #065f46; color: #34d399; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }}
+.badge-hold {{ background: #7f1d1d; color: #f87171; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }}
 </style></head><body>
 <h1>🛡️ Margin Guard App Dashboard</h1>
 <div class="card">
@@ -259,6 +343,13 @@ th, td {{ text-align: left; padding: 10px; border-bottom: 1px solid #334155; }}
   <table>
     <thead><tr><th>SKU</th><th>Unit Cost</th><th>Est. Shipping</th><th>Action</th></tr></thead>
     <tbody>{rows_html}</tbody>
+  </table>
+</div>
+<div class="card">
+  <h2>Recent Evaluated Orders ({shop})</h2>
+  <table>
+    <thead><tr><th>Order</th><th>Total</th><th>Margin</th><th>Decision</th><th>Time</th></tr></thead>
+    <tbody>{order_rows}</tbody>
   </table>
 </div>
 </body></html>"""
