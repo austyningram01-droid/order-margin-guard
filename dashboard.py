@@ -272,7 +272,7 @@ def handle_get(handler):
 
     if parsed.path == "/billing/subscribe":
         shop, _, _, _ = sync_state(qs.get("shop"))
-        token, _ = get_shop_token_and_plan(shop)
+        token, current_plan = get_shop_token_and_plan(shop)
         url = f"https://{shop}/admin/api/2024-10/recurring_application_charges.json"
         payload = json.dumps({
             "recurring_application_charge": {
@@ -289,20 +289,30 @@ def handle_get(handler):
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                confirm_url = data.get("recurring_application_charge", {}).get("confirmation_url", f"/?shop={shop}")
-                handler.send_response(302)
-                handler.send_header("Location", confirm_url)
-                handler.end_headers()
-                return
-        except Exception:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("UPDATE merchants SET plan_status = 'PRO_ACTIVE (TEST)' WHERE shop_domain = ?", (shop,))
-            conn.commit()
-            conn.close()
-            handler.send_response(302)
-            handler.send_header("Location", f"/?shop={shop}")
+                confirm_url = data.get("recurring_application_charge", {}).get("confirmation_url")
+                if confirm_url:
+                    handler.send_response(302)
+                    handler.send_header("Location", confirm_url)
+                    handler.end_headers()
+                    return
+        except Exception as e:
+            err_msg = str(e)
+            billing_html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>Upgrade Margin Guard</title>
+            <style>body{{font-family:-apple-system,sans-serif;background:#0f172a;color:#f8fafc;max-width:600px;margin:60px auto;padding:20px}}
+            .card{{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:24px}}
+            .btn{{background:#0284c7;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600;margin-right:10px}}</style></head>
+            <body><div class="card"><h2 style="margin-top:0;color:#38bdf8">🛡️ Margin Guard Pro ($19/mo)</h2>
+            <p><strong>Store:</strong> {shop} &nbsp;|&nbsp; <strong>Current Plan:</strong> {current_plan}</p>
+            <p style="color:#cbd5e1;font-size:14px;line-height:1.5">Note: Your store is currently connected using a single-store Custom App token (<code>shpat_...</code>). Shopify's hosted Billing Checkout screen only opens for apps created in the <strong>Shopify Partner Dashboard</strong>.</p>
+            <p style="color:#94a3b8;font-size:13px">You can activate Pro Test Mode directly below, or switch to Partner App credentials in <code>settings.json</code> to test Shopify's hosted billing screen.</p>
+            <div style="margin-top:20px">
+              <a class="btn" href="/billing/confirm?shop={shop}">✅ Activate Pro Plan (Test Mode)</a>
+              <a style="color:#94a3b8;text-decoration:none" href="/?shop={shop}">Cancel</a>
+            </div></div></body></html>"""
+            handler.send_response(200)
+            handler.send_header("Content-Type", "text/html; charset=utf-8")
             handler.end_headers()
+            handler.wfile.write(billing_html.encode("utf-8"))
             return
 
     if parsed.path == "/billing/confirm":
