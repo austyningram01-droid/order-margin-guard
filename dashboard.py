@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse, urlencode
 
 DB_PATH = "margin_guard.db"
 APP_URL = os.environ.get("RENDER_EXTERNAL_URL", "https://order-margin-guard.onrender.com").rstrip("/")
-SCOPES = "read_orders,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders"
+SCOPES = "read_products,read_orders,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders"
 
 def load_base_settings():
     if os.path.exists("settings.json"):
@@ -22,12 +22,15 @@ def init_db():
         shop_domain TEXT PRIMARY KEY,
         min_margin_pct REAL DEFAULT 15.0,
         alert_webhook_url TEXT DEFAULT '',
-        access_token TEXT DEFAULT ''
+        access_token TEXT DEFAULT '',
+        plan_status TEXT DEFAULT 'FREE_TRIAL'
     )""")
     c.execute("PRAGMA table_info(merchants)")
     cols = [r[1] for r in c.fetchall()]
     if "access_token" not in cols:
         c.execute("ALTER TABLE merchants ADD COLUMN access_token TEXT DEFAULT ''")
+    if "plan_status" not in cols:
+        c.execute("ALTER TABLE merchants ADD COLUMN plan_status TEXT DEFAULT 'FREE_TRIAL'")
 
     c.execute("""CREATE TABLE IF NOT EXISTS sku_costs (
         shop_domain TEXT,
@@ -53,7 +56,7 @@ def init_db():
     webhook = settings.get("alert_webhook_url") or settings.get("discord_webhook_url") or ""
     token = settings.get("shopify_access_token", "")
 
-    c.execute("INSERT OR IGNORE INTO merchants (shop_domain, min_margin_pct, alert_webhook_url, access_token) VALUES (?, ?, ?, ?)",
+    c.execute("INSERT OR IGNORE INTO merchants (shop_domain, min_margin_pct, alert_webhook_url, access_token, plan_status) VALUES (?, ?, ?, ?, 'FREE_TRIAL')",
               (shop, min_m, webhook, token))
     if token:
         c.execute("UPDATE merchants SET access_token = ? WHERE shop_domain = ? AND (access_token IS NULL OR access_token = '')", (token, shop))
@@ -81,13 +84,13 @@ def sync_state(target_shop=None):
     c = conn.cursor()
     row = None
     if target_shop:
-        c.execute("SELECT shop_domain, min_margin_pct, alert_webhook_url, access_token FROM merchants WHERE shop_domain = ?", (target_shop,))
+        c.execute("SELECT shop_domain, min_margin_pct, alert_webhook_url, access_token, plan_status FROM merchants WHERE shop_domain = ?", (target_shop,))
         row = c.fetchone()
     if not row:
-        c.execute("SELECT shop_domain, min_margin_pct, alert_webhook_url, access_token FROM merchants LIMIT 1")
+        c.execute("SELECT shop_domain, min_margin_pct, alert_webhook_url, access_token, plan_status FROM merchants LIMIT 1")
         row = c.fetchone()
 
-    shop, min_m, webhook, token = row if row else ("default_store", 15.0, "", "")
+    shop, min_m, webhook, token, plan = row if row else ("default_store", 15.0, "", "", "FREE_TRIAL")
 
     c.execute("SELECT sku, unit_cost, est_shipping FROM sku_costs WHERE shop_domain = ?", (shop,))
     skus = {r[0]: {"unit_cost": r[1], "est_shipping": r[2]} for r in c.fetchall()}
@@ -116,6 +119,58 @@ def sync_state(target_shop=None):
     except Exception:
         pass
     return shop, min_m, webhook, skus
+
+def get_shop_token_and_plan(shop):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT access_token, plan_status FROM merchants WHERE shop_domain = ?", (shop,))
+    row = c.fetchone()
+    conn.close()
+    settings = load_base_settings()
+    fallback_token = settings.get("shopify_access_token", "")
+    if row:
+        return (row[0] or fallback_token), (row[1] or "FREE_TRIAL")
+    return fallback_token, "FREE_TRIAL"
+
+def import_store_skus(shop):
+    token, _ = get_shop_token_and_plan(shop)
+    if not token:
+        return 0
+    discovered = set()
+    headers = {"X-Shopify-Access-Token": token, "Content-Type": "application/json"}
+    try:
+        req = urllib.request.Request(f"https://{shop}/admin/api/2024-10/products.json?limit=50", headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            for p in data.get("products", []):
+                for v in p.get("variants", []):
+                    sku = (v.get("sku") or "").strip()
+                    if sku:
+                        discovered.add(sku)
+    except Exception:
+        pass
+
+    if not discovered:
+        try:
+            req = urllib.request.Request(f"https://{shop}/admin/api/2024-10/orders.json?limit=50&status=any", headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for o in data.get("orders", []):
+                    for item in o.get("line_items", []):
+                        sku = (item.get("sku") or "").strip()
+                        if sku:
+                            discovered.add(sku)
+        except Exception:
+            pass
+
+    if discovered:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        for sku in discovered:
+            c.execute("INSERT OR IGNORE INTO sku_costs VALUES (?, ?, 10.0, 5.0)", (shop, sku))
+        conn.commit()
+        conn.close()
+    return len(discovered)
 
 def record_order(target_shop, order_data, res):
     init_db()
@@ -202,6 +257,68 @@ def handle_get(handler):
     client_id = settings.get("shopify_client_id", "")
     client_secret = settings.get("shopify_client_secret", "")
 
+    if parsed.path == "/privacy":
+        privacy_html = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>Margin Guard Privacy Policy</title>
+        <style>body{font-family:-apple-system,sans-serif;background:#0f172a;color:#f8fafc;max-width:720px;margin:40px auto;padding:20px;line-height:1.6}</style></head>
+        <body><h1>Margin Guard Privacy Policy</h1>
+        <p>Margin Guard processes Shopify order totals, line-item SKUs, and fulfillment statuses solely to calculate order profit margins and place fulfillment holds when margins fall below merchant-configured thresholds.</p>
+        <p><strong>Data Retention & GDPR Compliance:</strong> We do not sell or share merchant or customer data. When a store uninstalls Margin Guard or triggers a <code>shop/redact</code> or <code>customers/redact</code> webhook, all associated records are permanently removed.</p>
+        <p><a href="/" style="color:#38bdf8">← Back to Dashboard</a></p></body></html>"""
+        handler.send_response(200)
+        handler.send_header("Content-Type", "text/html; charset=utf-8")
+        handler.end_headers()
+        handler.wfile.write(privacy_html.encode("utf-8"))
+        return
+
+    if parsed.path == "/billing/subscribe":
+        shop, _, _, _ = sync_state(qs.get("shop"))
+        token, _ = get_shop_token_and_plan(shop)
+        url = f"https://{shop}/admin/api/2024-10/recurring_application_charges.json"
+        payload = json.dumps({
+            "recurring_application_charge": {
+                "name": "Margin Guard Pro Plan",
+                "price": 19.0,
+                "return_url": f"{APP_URL}/billing/confirm?shop={shop}",
+                "test": True
+            }
+        }).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, method="POST", headers={
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": token
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                confirm_url = data.get("recurring_application_charge", {}).get("confirmation_url", f"/?shop={shop}")
+                handler.send_response(302)
+                handler.send_header("Location", confirm_url)
+                handler.end_headers()
+                return
+        except Exception:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("UPDATE merchants SET plan_status = 'PRO_ACTIVE (TEST)' WHERE shop_domain = ?", (shop,))
+            conn.commit()
+            conn.close()
+            handler.send_response(302)
+            handler.send_header("Location", f"/?shop={shop}")
+            handler.end_headers()
+            return
+
+    if parsed.path == "/billing/confirm":
+        shop = qs.get("shop", "")
+        if shop:
+            init_db()
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("UPDATE merchants SET plan_status = 'PRO_ACTIVE ($19/mo)' WHERE shop_domain = ?", (shop,))
+            conn.commit()
+            conn.close()
+        handler.send_response(302)
+        handler.send_header("Location", f"/?shop={shop}")
+        handler.end_headers()
+        return
+
     if parsed.path == "/install":
         shop = qs.get("shop", "").strip().lower()
         if not shop.endswith(".myshopify.com"):
@@ -250,7 +367,7 @@ def handle_get(handler):
         init_db()
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO merchants (shop_domain, min_margin_pct, alert_webhook_url, access_token) VALUES (?, 15.0, '', ?)", (shop, access_token))
+        c.execute("INSERT OR IGNORE INTO merchants (shop_domain, min_margin_pct, alert_webhook_url, access_token, plan_status) VALUES (?, 15.0, '', ?, 'FREE_TRIAL')", (shop, access_token))
         c.execute("UPDATE merchants SET access_token = ? WHERE shop_domain = ?", (access_token, shop))
         c.execute("INSERT OR IGNORE INTO sku_costs VALUES (?, 'DEFAULT', 10.0, 5.0)", (shop,))
         conn.commit()
@@ -264,6 +381,7 @@ def handle_get(handler):
 
     target_shop = qs.get("shop")
     shop, min_m, webhook, skus = sync_state(target_shop)
+    _, plan_status = get_shop_token_and_plan(shop)
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -294,11 +412,13 @@ def handle_get(handler):
 <style>
 body {{ font-family: -apple-system, sans-serif; background: #0f172a; color: #f8fafc; max-width: 860px; margin: 40px auto; padding: 0 20px; }}
 .card {{ background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px; margin-bottom: 24px; }}
-h1 {{ margin-top: 0; color: #38bdf8; }} h2 {{ margin-top: 0; font-size: 18px; color: #e2e8f0; }}
+h1 {{ margin-top: 0; color: #38bdf8; display: flex; justify-content: space-between; align-items: center; }}
+h2 {{ margin-top: 0; font-size: 18px; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; }}
 label {{ display: block; font-size: 13px; color: #94a3b8; margin-bottom: 4px; }}
 input, select {{ width: 100%; padding: 8px 10px; margin-bottom: 12px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: #fff; box-sizing: border-box; }}
-button {{ background: #0284c7; color: #fff; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }}
-button:hover {{ background: #0369a1; }}
+button, .btn-link {{ background: #0284c7; color: #fff; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; font-size: 13px; }}
+button:hover, .btn-link:hover {{ background: #0369a1; }}
+.btn-sec {{ background: #475569; }}
 .btn-del {{ background: #dc2626; padding: 5px 10px; font-size: 12px; }}
 table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
 th, td {{ text-align: left; padding: 10px; border-bottom: 1px solid #334155; }}
@@ -307,7 +427,10 @@ th, td {{ text-align: left; padding: 10px; border-bottom: 1px solid #334155; }}
 .badge-ok {{ background: #065f46; color: #34d399; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }}
 .badge-hold {{ background: #7f1d1d; color: #f87171; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }}
 </style></head><body>
-<h1>🛡️ Margin Guard App Dashboard</h1>
+<h1>
+  <span>🛡️ Margin Guard App Dashboard</span>
+  <span style="font-size:13px"><span class="badge-ok">{plan_status}</span> <a class="btn-link" style="margin-left:8px" href="/billing/subscribe?shop={shop}">Upgrade ($19/mo)</a></span>
+</h1>
 <div class="card">
   <h2>Connected Stores & OAuth Installer</h2>
   <form method="GET" action="/" class="top-bar">
@@ -330,7 +453,13 @@ th, td {{ text-align: left; padding: 10px; border-bottom: 1px solid #334155; }}
   </form>
 </div>
 <div class="card">
-  <h2>SKU Cost & Shipping Manager ({shop})</h2>
+  <h2>
+    <span>SKU Cost & Shipping Manager ({shop})</span>
+    <form method="POST" action="/api/sku/sync" style="margin:0">
+      <input type="hidden" name="shop" value="{shop}">
+      <button type="submit" class="btn-sec">🔄 Auto-Import Store SKUs</button>
+    </form>
+  </h2>
   <form method="POST" action="/api/sku">
     <input type="hidden" name="shop" value="{shop}">
     <div class="grid">
@@ -352,6 +481,7 @@ th, td {{ text-align: left; padding: 10px; border-bottom: 1px solid #334155; }}
     <tbody>{order_rows}</tbody>
   </table>
 </div>
+<p style="text-align:center;font-size:12px;color:#64748b"><a href="/privacy" style="color:#94a3b8">Privacy Policy & GDPR Compliance</a> • Compliance Webhook: <code>{APP_URL}/webhooks/compliance</code></p>
 </body></html>"""
     handler.send_response(200)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
@@ -378,6 +508,14 @@ def handle_post(handler):
         sku = form.get("sku", "").strip()
         if sku and sku != "DEFAULT":
             c.execute("DELETE FROM sku_costs WHERE shop_domain = ? AND sku = ?", (shop, sku))
+    elif handler.path == "/api/sku/sync":
+        conn.close()
+        import_store_skus(shop)
+        sync_state(shop)
+        handler.send_response(303)
+        handler.send_header("Location", f"/?shop={shop}")
+        handler.end_headers()
+        return
     conn.commit()
     conn.close()
     sync_state(shop)
