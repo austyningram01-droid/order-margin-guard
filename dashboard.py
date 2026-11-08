@@ -277,7 +277,7 @@ def handle_get(handler):
         payload = json.dumps({
             "recurring_application_charge": {
                 "name": "Margin Guard Pro Plan",
-                "price": 19.0,
+                "price": 9.99,
                 "return_url": f"{APP_URL}/billing/confirm?shop={shop}",
                 "test": True
             }
@@ -301,7 +301,7 @@ def handle_get(handler):
             <style>body{{font-family:-apple-system,sans-serif;background:#0f172a;color:#f8fafc;max-width:600px;margin:60px auto;padding:20px}}
             .card{{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:24px}}
             .btn{{background:#0284c7;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600;margin-right:10px}}</style></head>
-            <body><div class="card"><h2 style="margin-top:0;color:#38bdf8">🛡️ Margin Guard Pro ($19/mo)</h2>
+            <body><div class="card"><h2 style="margin-top:0;color:#38bdf8">🛡️ Margin Guard Pro ($9.99/mo)</h2>
             <p><strong>Store:</strong> {shop} &nbsp;|&nbsp; <strong>Current Plan:</strong> {current_plan}</p>
             <p style="color:#cbd5e1;font-size:14px;line-height:1.5">Note: Your store is currently connected using a single-store Custom App token (<code>shpat_...</code>). Shopify's hosted Billing Checkout screen only opens for apps created in the <strong>Shopify Partner Dashboard</strong>.</p>
             <p style="color:#94a3b8;font-size:13px">You can activate Pro Test Mode directly below, or switch to Partner App credentials in <code>settings.json</code> to test Shopify's hosted billing screen.</p>
@@ -321,7 +321,7 @@ def handle_get(handler):
             init_db()
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
-            c.execute("UPDATE merchants SET plan_status = 'PRO_ACTIVE ($19/mo)' WHERE shop_domain = ?", (shop,))
+            c.execute("UPDATE merchants SET plan_status = 'PRO_ACTIVE ($9.99/mo)' WHERE shop_domain = ?", (shop,))
             conn.commit()
             conn.close()
         handler.send_response(302)
@@ -390,6 +390,15 @@ def handle_get(handler):
         return
 
     target_shop = qs.get("shop")
+    if parsed.path == "/" and not target_shop:
+        if os.path.exists("templates/index.html"):
+            with open("templates/index.html", "r", encoding="utf-8") as f:
+                landing_html = f.read()
+            handler.send_response(200)
+            handler.send_header("Content-Type", "text/html; charset=utf-8")
+            handler.end_headers()
+            handler.wfile.write(landing_html.encode("utf-8"))
+            return
     shop, min_m, webhook, skus = sync_state(target_shop)
     _, plan_status = get_shop_token_and_plan(shop)
 
@@ -439,7 +448,7 @@ th, td {{ text-align: left; padding: 10px; border-bottom: 1px solid #334155; }}
 </style></head><body>
 <h1>
   <span>🛡️ Margin Guard App Dashboard</span>
-  <span style="font-size:13px"><span class="badge-ok">{plan_status}</span> <a class="btn-link" style="margin-left:8px" href="/billing/subscribe?shop={shop}">Upgrade ($19/mo)</a></span>
+  <span style="font-size:13px"><span class="badge-ok">{plan_status}</span> <a class="btn-link" style="margin-left:8px" href="/billing/subscribe?shop={shop}">Upgrade ($9.99/mo)</a></span>
 </h1>
 <div class="card">
   <h2>Connected Stores & OAuth Installer</h2>

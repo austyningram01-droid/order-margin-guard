@@ -1,0 +1,181 @@
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Margin Guard — Protect Your Shopify Profits</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .gradient-text { background: linear-gradient(135deg, #10B981, #3B82F6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
+  <!-- Navigation -->
+  <nav class="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center border-b border-slate-800">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xl">
+        <i class="fa-solid fa-shield-halved"></i>
+      </div>
+      <span class="text-xl font-bold tracking-tight">Order Margin Guard</span>
+    </div>
+    <div class="flex items-center gap-6">
+      <a href="#how-it-works" class="text-sm text-slate-400 hover:text-slate-200 transition">How It Works</a>
+      <a href="#pricing" class="text-sm text-slate-400 hover:text-slate-200 transition">Pricing</a>
+      <a href="#reviews" class="text-sm text-slate-400 hover:text-slate-200 transition">Reviews</a>
+      <a href="#install" class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition">Install Free</a>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-6">
+      <i class="fa-solid fa-bolt"></i> Real-Time Profit Defense for Shopify
+    </div>
+    <h1 class="text-5xl sm:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
+      Stop losing money on <br><span class="gradient-text">stacked discounts & shipping spikes.</span>
+    </h1>
+    <p class="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10">
+      Margin Guard calculates true unit profitability the millisecond an order lands. Automatically flag or hold negative-margin orders before you ship.
+    </p>
+
+    <!-- 1-Click Install Form -->
+    <div id="install" class="max-w-md mx-auto bg-slate-900/80 border border-slate-800 p-3 rounded-2xl shadow-2xl flex flex-col sm:flex-row gap-2">
+      <input type="text" id="shopDomain" placeholder="your-store.myshopify.com" 
+        class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+      <button onclick="launchInstall()" 
+        class="px-6 py-3 rounded-xl font-semibold bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition flex items-center justify-center gap-2 whitespace-nowrap">
+        <span>Install Free</span>
+        <i class="fa-solid fa-arrow-right text-xs"></i>
+      </button>
+    </div>
+    <p class="text-xs text-slate-500 mt-3">Free 50 orders/month. No credit card required to start.</p>
+  </header>
+
+  <!-- How It Works -->
+  <section id="how-it-works" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl font-bold text-white mb-3">How Margin Guard Protects Your Bottom Line</h2>
+      <p class="text-slate-400">Zero manual calculations. Automated store defense.</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-8">
+      <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6">
+        <div class="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xl mb-4">1</div>
+        <h3 class="text-lg font-bold text-white mb-2">Connect Your Store</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Install in under 60 seconds. Margin Guard syncs your product costs (COGS) safely via the official Shopify API.</p>
+      </div>
+      <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6">
+        <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xl mb-4">2</div>
+        <h3 class="text-lg font-bold text-white mb-2">Set Margin Thresholds</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">Choose your minimum acceptable net margin (e.g., 15%). Set rules for custom fulfillment holds or discount stack limits.</p>
+      </div>
+      <div class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-6">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xl mb-4">3</div>
+        <h3 class="text-lg font-bold text-white mb-2">Automated Order Defense</h3>
+        <p class="text-slate-400 text-sm leading-relaxed">When an order falls below margin, Margin Guard tags the order, holds fulfillment, and alerts you instantly.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Cards -->
+  <section id="pricing" class="max-w-4xl mx-auto px-6 py-16 border-t border-slate-900">
+    <div class="text-center mb-12">
+      <h2 class="text-3xl font-bold text-white mb-3">Straightforward, Fair Pricing</h2>
+      <p class="text-slate-400">Start free. Upgrade only when your order volume demands it.</p>
+    </div>
+    <div class="grid md:grid-cols-2 gap-8">
+      <div class="bg-slate-900/40 border border-slate-800 rounded-2xl p-8 flex flex-col justify-between">
+        <div>
+          <span class="text-emerald-400 font-bold text-xs uppercase tracking-widest">Free Tier</span>
+          <div class="flex items-baseline gap-2 mt-3 mb-6">
+            <span class="text-4xl font-extrabold text-white">$0</span>
+            <span class="text-slate-400">/ forever</span>
+          </div>
+          <ul class="space-y-4 text-sm text-slate-300">
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Up to 50 orders analyzed / month</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Automatic order tagging</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Product COGS margin verification</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Daily summary dashboard</li>
+          </ul>
+        </div>
+        <button onclick="document.getElementById('shopDomain').focus()" class="mt-8 w-full py-3 rounded-xl border border-slate-700 hover:border-slate-500 font-semibold text-white transition text-center">
+          Get Started Free
+        </button>
+      </div>
+
+      <div class="bg-slate-900 border-2 border-emerald-500/80 rounded-2xl p-8 flex flex-col justify-between relative shadow-emerald-950/40 shadow-xl">
+        <div class="absolute -top-3 right-6 bg-emerald-500 text-slate-950 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+          Most Popular
+        </div>
+        <div>
+          <span class="text-emerald-400 font-bold text-xs uppercase tracking-widest">Pro Guardian</span>
+          <div class="flex items-baseline gap-2 mt-3 mb-6">
+            <span class="text-4xl font-extrabold text-white">$9.99</span>
+            <span class="text-slate-400">/ month</span>
+          </div>
+          <ul class="space-y-4 text-sm text-slate-300">
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> <strong>Unlimited</strong> orders scanned</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Automated fulfillment hold on negative margin</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Instant SMS & Telegram order alerts</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-check text-emerald-400"></i> Influencer discount stacking defense</li>
+          </ul>
+        </div>
+        <button onclick="document.getElementById('shopDomain').focus()" class="mt-8 w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-slate-950 transition text-center">
+          Start 14-Day Free Pro Trial
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Merchant Reviews -->
+  <section id="reviews" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+    <div class="text-center mb-12">
+      <h2 class="text-3xl font-bold text-white mb-3">Merchant Reviews</h2>
+      <p class="text-slate-400">Real feedback from stores preventing discount leakage.</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl">
+        <div class="flex text-amber-400 text-sm mb-3">
+          <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+        </div>
+        <p class="text-slate-300 text-sm mb-4">"Caught a TikTok coupon glitch on day 2 that would have cost us $1,200 in negative shipping fees. The auto-hold feature paid for itself immediately."</p>
+        <div class="text-xs text-slate-500 font-semibold">David M. — Apparel & Streetwear Store</div>
+      </div>
+      <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl">
+        <div class="flex text-amber-400 text-sm mb-3">
+          <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+        </div>
+        <p class="text-slate-300 text-sm mb-4">"Super clean setup. It tags every single low-profit order right inside Shopify Admin so our warehouse team doesn't pack loss-making items."</p>
+        <div class="text-xs text-slate-500 font-semibold">Sarah K. — Home Goods Merchant</div>
+      </div>
+      <div class="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl">
+        <div class="flex text-amber-400 text-sm mb-3">
+          <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+        </div>
+        <p class="text-slate-300 text-sm mb-4">"We run steep discounts and this is the only tool that prevents customers from stacking affiliate codes with sitewide promotions."</p>
+        <div class="text-xs text-slate-500 font-semibold">Marcus R. — Supplement Brand Founder</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 py-8 text-center text-xs text-slate-600">
+    <p>&copy; 2026 Order Margin Guard. Built for Shopify merchants.</p>
+  </footer>
+
+  <script>
+    function launchInstall() {
+      const rawDomain = document.getElementById('shopDomain').value.trim();
+      if (!rawDomain) {
+        alert('Please enter your Shopify store domain (e.g., yourstore.myshopify.com)');
+        return;
+      }
+      let cleaned = rawDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (!cleaned.includes('.myshopify.com') && !cleaned.includes('.')) {
+        cleaned = cleaned + '.myshopify.com';
+      }
+      window.location.href = `/install?shop=${encodeURIComponent(cleaned)}`;
+    }
+  </script>
+</body>
+</html>
