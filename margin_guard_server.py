@@ -218,3 +218,27 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n[!] Shutting down server...")
         server.server_close()
+
+
+def send_discord_alert(webhook_url, res, shop_domain):
+    if not webhook_url:
+        return
+    hold_status = res.get('hold_status', 'HOLD_FULFILLMENT')
+    msg = (
+        f"🚨 **MARGIN GUARD: Fulfillment Hold Placed**\n"
+        f"• **Store:** `{shop_domain}`\n"
+        f"• **Order:** `{res.get('order_name', '#Unknown')}` (Total: ${res.get('total_price', '0.00')} )\n"
+        f"• **Margin:** `{res.get('margin_pct', 0):.1f}%`\n"
+        f"• **Action:** `{hold_status}`\n"
+        f"🔗 https://admin.shopify.com/store/{shop_domain.split('.')[0]}/orders/{res.get('order_id','')}"
+    )
+    req = urllib.request.Request(
+        webhook_url,
+        data=json.dumps({"content": msg}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    try:
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        print(f"Discord alert failed: {e}")
