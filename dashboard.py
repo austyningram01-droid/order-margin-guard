@@ -279,7 +279,7 @@ def handle_get(handler):
                 "name": "Margin Guard Pro Plan",
                 "price": 9.99,
                 "return_url": f"{APP_URL}/billing/confirm?shop={shop}",
-                "test": True
+                "test": False
             }
         }).encode("utf-8")
         req = urllib.request.Request(url, data=payload, method="POST", headers={
